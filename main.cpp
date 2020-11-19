@@ -238,6 +238,7 @@ int main (int argc, char** argv)
     if (argc != 3)
     {
         std::cout << "Please provide the word to check and the dictionary file as arguments\n";
+        exit (1);
     }
 
     input_word word (argv [1]);
