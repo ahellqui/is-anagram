@@ -2,7 +2,13 @@
 #include <array>
 #include <vector>
 #include <cstring>
+#include <cstdio>
+#include <algorithm>
 
+/* So I get stack overflow. I think there are two things I can do about that:
+ *  - Initially remove all words from the dictionary that don't contain any letters in input
+ *  - Actually use the word_lengths thing to jump less
+*/
 struct input_word
 {
     input_word (const char* word);
@@ -35,34 +41,79 @@ struct dictionary
 {
     dictionary (const char* filename);
 
-    std::vector<const char*> words;
+    std::vector<char*> words;
+
     // Lookup table for where the different words start in the vector.
     // I'm lazy, so I'll just assume that no word exceeds 99 characters (index 0 won't be used)
     std::array<int, 100> word_lengths;
 
     // These are only for prototyping. In the final version, there will be a constructor
     // that takes a file name as argument and does all this
-    void read_words_file ();
+private:
+    void read_dictionary_file (const char* filename);
     void initiate_lookup_table ();
 };
 
 dictionary::dictionary (const char* filename)
 {
-    this->read_words_file ();
+    this->read_dictionary_file (filename);
     this->initiate_lookup_table ();
 }
 
-void dictionary::read_words_file ()
+void dictionary::read_dictionary_file (const char* filename)
 {
-    // in the real program, this will allocate memory and assign it to a char* (not const)
-    this->words.push_back ("lo");
-    this->words.push_back ("hel");
+    FILE* dict_file = fopen (filename, "rb");
+    if (dict_file == NULL)
+    {
+        std::cout << "Could not open dictionary file\n";
+        exit (1);
+    }
+    int begin_word = 0;
 
-    this->words.push_back ("fjas");
-    this->words.push_back ("leloh");
-    this->words.push_back ("olleh");
+    int result;
+    while ((result = getc (dict_file)))
+    {
+        if (result == EOF)
+        {
+            // std::cout << "IN IF\n";
+            break;
+        }
+        else if (result == '\n')
+        {
+            // std::cout << "BEGIN ELSE\n";
+            int word_length = ftell (dict_file) - begin_word;
+            // std::cout << "WORD LENGTH: " << word_length << "\n";
+            char* word = new char [word_length];
+            // fgets puts a null terminator where the newline character would be
+            fseek (dict_file, -word_length, SEEK_CUR);
 
-    // sort
+            char tmp = getc (dict_file);
+            // std::cout << "GETC: " << tmp << "\n";
+
+            ungetc (tmp, dict_file);
+
+            fgets (word, word_length, dict_file);
+            // std::cout << "Word: " << word<< "\n";
+            this->words.push_back (word);
+
+            begin_word += word_length;
+            // Get rid of the newline at the end
+            getc (dict_file);
+            // std::cout << "END ELSE\n";
+        }
+    }
+    fclose (dict_file);
+
+    std::sort (this->words.begin (), this->words.end (), [](char* a, char* b) {
+            return strlen (a) > strlen (b);
+            });
+
+    /*
+    for (char* c : this->words)
+    {
+        std::cout << c << "\n";
+    }
+    */
 }
 
 // Assumes sorted dictionary
@@ -73,7 +124,7 @@ void dictionary::initiate_lookup_table ()
 
     for (int i = 0; i < this->words.size (); i++)
     {
-        if ((tmp_size = (strlen (this->words [i]))) > last_size)
+        if ((tmp_size = (strlen (this->words [i]))) != last_size)
         {
             // Use the indicies before the switch instead of after
             this->word_lengths [last_size] = i - 1;
@@ -86,32 +137,56 @@ void dictionary::initiate_lookup_table ()
     }
 }
 
-bool search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<const char*>& annagram_list)
+bool search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<std::vector<const char*>>& annagram_list)
 {
     int word_length = strlen (dict.words [dict_index]);
+
+    // std::cout << "Word length: " << word_length << "\n";
+    // std::cout << "DICT WORD: " << dict.words [dict_index] << "\n";
+    // std::cout << "Input length: " << input.length << "\n";
+
+    /*
+    for (int i = 0; i < 26; i++)
+    {
+        std::cout << char(i+97) << ": " << input.word_letters [i] << "\n";
+    }
+    */
+
     for (int i = 0; i < word_length; i++)
     {
         // I should probably just define a custom operator instead of doing this
         // - 'a' thing
         if (input.word_letters [dict.words [dict_index][i] - 'a'] > 0)
         {
+            // std::cout << "Decrementing: " << dict.words [dict_index][i] << "\n";
             --(input.word_letters [dict.words [dict_index][i] - 'a']);
             --input.length;
+
+            // std::cout << "New input length: " << input.length << "\n";
         }
         else
         {
+            // std::cout << "In return false\n";
             return false;
         }
 
-        if (input.length == 0)
+        if (input.length == 0 && i == word_length - 1)
         {
-            annagram_list.push_back (dict.words [dict_index]);
+            annagram_list.push_back (annagram_list.back ());
+            annagram_list [annagram_list.size () - 2].push_back (dict.words [dict_index]);
             return true;
         }
-        else if (i == word_length - 1 && dict_index != 0)
+        else if (i == word_length - 1)
         {
-            annagram_list.push_back (dict.words [dict_index]);
-            return search_anagrams_traverse (input, dict, dict_index - 1, annagram_list);
+            annagram_list.back ().push_back (dict.words [dict_index]);
+            for (int j = 1; dict_index + j < dict.words.size (); j++)
+            {
+                input_word input_copy = input;
+                // std::cout << "copy_length: " << input_copy.length << "\n";
+                // Every word needs to be checked for all instead of just the first match
+                search_anagrams_traverse (input_copy, dict, dict_index + j, annagram_list);
+            }
+            annagram_list.back ().pop_back ();
         }
     }
     return false;
@@ -120,29 +195,27 @@ bool search_anagrams_traverse (input_word input, const dictionary& dict, int dic
 void search_anagrams (const input_word& input, const dictionary& dict, std::vector<std::vector<const char*>>& annagram_list)
 {
     annagram_list.push_back (std::vector<const char*> ());
-    for (int i = dict.word_lengths [input.length]; i >= 0; i--)
+    for (int i = dict.word_lengths [input.length]; i < dict.words.size (); i++)
     {
         // Every iteration needs a copy of the input word so we don't change it
         input_word input_copy = input;
-
-        if (search_anagrams_traverse (input_copy, dict, i, annagram_list.back ()) == true)
-        {
-            // Save the result by pushing a new element
-            annagram_list.push_back (std::vector<const char*> ());
-        }
-        else
-        {
-            annagram_list.back ().clear ();
-        }
+        search_anagrams_traverse (input_copy, dict, i, annagram_list);
     }
 }
 
-int main ()
+int main (int argc, char** argv)
 {
-    input_word word ("hello");
-    dictionary dict ("hdh");
+    if (argc != 3)
+    {
+        std::cout << "Please provide the word to check and the dictionary file as arguments\n";
+    }
+
+    input_word word (argv [1]);
+    dictionary dict (argv [2]);
 
     std::vector<std::vector<const char*>> annagram_list;
+    // for (int i = 0; i < dict.words.size (); i++)
+        // std::cout << "i = " << i << ": "<< dict.words [i] << "\n";
     search_anagrams (word, dict, annagram_list);
 
     std::cout << "Annagrams:\n";
