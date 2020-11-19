@@ -8,6 +8,8 @@
 /* So I get stack overflow. I think there are two things I can do about that:
  *  - Initially remove all words from the dictionary that don't contain any letters in input
  *  - Actually use the word_lengths thing to jump less
+ *
+ *  I also don't know what to do about apostrophes
 */
 struct input_word
 {
@@ -39,19 +41,19 @@ input_word::input_word (const input_word& word)
 
 struct dictionary
 {
+    dictionary () = default;
     dictionary (const char* filename);
 
+    // Yes these are never freed. Destructors might arrive eventually when I feel like it
     std::vector<char*> words;
 
     // Lookup table for where the different words start in the vector.
     // I'm lazy, so I'll just assume that no word exceeds 99 characters (index 0 won't be used)
     std::array<int, 100> word_lengths;
 
-    // These are only for prototyping. In the final version, there will be a constructor
-    // that takes a file name as argument and does all this
+    void initiate_lookup_table ();
 private:
     void read_dictionary_file (const char* filename);
-    void initiate_lookup_table ();
 };
 
 dictionary::dictionary (const char* filename)
@@ -137,6 +139,34 @@ void dictionary::initiate_lookup_table ()
     }
 }
 
+// Returns a new dictionary with only letters contained in the input_word.
+// The pointers are shared with the original dictionary though, so it should only
+// be read from
+const dictionary* filter_dictionary (const dictionary& from, const input_word& filter_word)
+{
+    dictionary* new_dict = new dictionary ();
+
+    for (int i = 0; i < from.words.size (); i++)
+    {
+        int word_length = strlen (from.words [i]);
+        for (int j = 0; j < word_length; j++)
+        {
+            if (filter_word.word_letters [from.words [i][j] - 'a'] == 0)
+            {
+                break;
+            }
+            else if (j == word_length - 1)
+            {
+                new_dict->words.push_back (from.words [i]);
+            }
+        }
+    }
+
+    new_dict->initiate_lookup_table ();
+
+    return new_dict;
+}
+
 bool search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<std::vector<const char*>>& annagram_list)
 {
     int word_length = strlen (dict.words [dict_index]);
@@ -213,10 +243,15 @@ int main (int argc, char** argv)
     input_word word (argv [1]);
     dictionary dict (argv [2]);
 
+    const dictionary* filtered_dict = filter_dictionary (dict, word);
+
     std::vector<std::vector<const char*>> annagram_list;
-    // for (int i = 0; i < dict.words.size (); i++)
-        // std::cout << "i = " << i << ": "<< dict.words [i] << "\n";
-    search_anagrams (word, dict, annagram_list);
+
+    // for (int i = 0; i < filtered_dict->words.size (); i++)
+        // std::cout << "i = " << i << ": "<< filtered_dict->words [i] << "\n";
+    search_anagrams (word, *filtered_dict, annagram_list);
+
+    delete filtered_dict;
 
     std::cout << "Annagrams:\n";
     // There will always be one extra element that gets created to store the next
