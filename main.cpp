@@ -49,9 +49,10 @@ struct dictionary
 
     // Lookup table for where the different words start in the vector.
     // I'm lazy, so I'll just assume that no word exceeds 99 characters (index 0 won't be used)
-    std::array<int, 100> word_lengths;
+    std::array<int, 100> word_lengths {};
 
     void initiate_lookup_table ();
+
 private:
     void read_dictionary_file (const char* filename);
 };
@@ -167,7 +168,7 @@ const dictionary* filter_dictionary (const dictionary& from, const input_word& f
     return new_dict;
 }
 
-bool search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<std::vector<const char*>>& annagram_list)
+void search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<std::vector<const char*>>& annagram_list, int* recursions)
 {
     int word_length = strlen (dict.words [dict_index]);
 
@@ -197,14 +198,15 @@ bool search_anagrams_traverse (input_word input, const dictionary& dict, int dic
         else
         {
             // std::cout << "In return false\n";
-            return false;
+            return;
         }
 
         if (input.length == 0 && i == word_length - 1)
         {
+            printf ("Recursions: %d\n", *recursions);
             annagram_list.push_back (annagram_list.back ());
             annagram_list [annagram_list.size () - 2].push_back (dict.words [dict_index]);
-            return true;
+            return;
         }
         else if (i == word_length - 1)
         {
@@ -212,14 +214,20 @@ bool search_anagrams_traverse (input_word input, const dictionary& dict, int dic
             for (int j = 1; dict_index + j < dict.words.size (); j++)
             {
                 input_word input_copy = input;
+
+                if (strlen (dict.words [dict_index + j]) > input.length)
+                {
+                    j = dict.word_lengths [input.length];
+                    j -= dict_index;
+                }
                 // std::cout << "copy_length: " << input_copy.length << "\n";
-                // Every word needs to be checked for all instead of just the first match
-                search_anagrams_traverse (input_copy, dict, dict_index + j, annagram_list);
+                *recursions += 1;
+                search_anagrams_traverse (input_copy, dict, dict_index + j, annagram_list, recursions);
             }
             annagram_list.back ().pop_back ();
         }
     }
-    return false;
+    return;
 }
 
 void search_anagrams (const input_word& input, const dictionary& dict, std::vector<std::vector<const char*>>& annagram_list)
@@ -227,9 +235,10 @@ void search_anagrams (const input_word& input, const dictionary& dict, std::vect
     annagram_list.push_back (std::vector<const char*> ());
     for (int i = dict.word_lengths [input.length]; i < dict.words.size (); i++)
     {
+        int tmp = 0;
         // Every iteration needs a copy of the input word so we don't change it
         input_word input_copy = input;
-        search_anagrams_traverse (input_copy, dict, i, annagram_list);
+        search_anagrams_traverse (input_copy, dict, i, annagram_list, &tmp);
     }
 }
 
