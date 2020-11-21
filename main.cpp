@@ -4,20 +4,34 @@
 #include <cstring>
 #include <cstdio>
 #include <algorithm>
+#include <cstdint>
+
+/*
+ * Prints a list of all anagrams of a word
+ *
+ * Limitations:
+ *  Doesn't handle non a-z characters. Should you try anyways, you could get lucky or get a stack smashing error
+ *  If run with a really long word, it will take a few hours and probably segmentation fault due to stack overflow
+*/
+
 
 /* So I get stack overflow. I think there are two things I can do about that:
- *  - Initially remove all words from the dictionary that don't contain any letters in input
- *  - Actually use the word_lengths thing to jump less
+ *  - Initially remove all words from the dictionary that don't contain any letters in input [done]
+ *  - Actually use the word_lengths thing to jump less [done]
  *
- *  I also don't know what to do about apostrophes
+ *  - Make input_word smaller since it gets copied a lot (this can be done either by making the struct smaller,
+ *    or by allocating a new object on the heap and just passing a pointer (which is slow but saves stack space))
+ *
 */
+
 struct input_word
 {
     input_word (const char* word);
     input_word (const input_word& word);
 
-    int length;
-    int word_letters [26];
+    uint8_t length;
+    // Only ascii values are supported
+    uint8_t word_letters [26];
 };
 
 input_word::input_word (const char* word)
@@ -167,8 +181,8 @@ const dictionary* filter_dictionary (const dictionary& from, const input_word& f
 
     return new_dict;
 }
-
-void search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<std::vector<const char*>>& annagram_list, int* recursions)
+unsigned int recursions = 0;
+void search_anagrams_traverse (input_word input, const dictionary& dict, int dict_index, std::vector<std::vector<const char*>>& annagram_list)
 {
     int word_length = strlen (dict.words [dict_index]);
 
@@ -198,12 +212,14 @@ void search_anagrams_traverse (input_word input, const dictionary& dict, int dic
         else
         {
             // std::cout << "In return false\n";
+            --recursions;
             return;
         }
 
         if (input.length == 0 && i == word_length - 1)
         {
-            printf ("Recursions: %d\n", *recursions);
+            printf ("Recursions: %d\n", recursions);
+            --recursions;
             annagram_list.push_back (annagram_list.back ());
             annagram_list [annagram_list.size () - 2].push_back (dict.words [dict_index]);
             return;
@@ -221,8 +237,8 @@ void search_anagrams_traverse (input_word input, const dictionary& dict, int dic
                     j -= dict_index;
                 }
                 // std::cout << "copy_length: " << input_copy.length << "\n";
-                *recursions += 1;
-                search_anagrams_traverse (input_copy, dict, dict_index + j, annagram_list, recursions);
+                ++recursions;
+                search_anagrams_traverse (input_copy, dict, dict_index + j, annagram_list);
             }
             annagram_list.back ().pop_back ();
         }
@@ -235,10 +251,10 @@ void search_anagrams (const input_word& input, const dictionary& dict, std::vect
     annagram_list.push_back (std::vector<const char*> ());
     for (int i = dict.word_lengths [input.length]; i < dict.words.size (); i++)
     {
-        int tmp = 0;
+        recursions = 0;
         // Every iteration needs a copy of the input word so we don't change it
         input_word input_copy = input;
-        search_anagrams_traverse (input_copy, dict, i, annagram_list, &tmp);
+        search_anagrams_traverse (input_copy, dict, i, annagram_list);
     }
 }
 
