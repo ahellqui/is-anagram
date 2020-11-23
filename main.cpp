@@ -92,31 +92,25 @@ void dictionary::read_dictionary_file (const char* filename)
     {
         if (result == EOF)
         {
-            // std::cout << "IN IF\n";
             break;
         }
         else if (result == '\n')
         {
-            // std::cout << "BEGIN ELSE\n";
             int word_length = ftell (dict_file) - begin_word;
-            // std::cout << "WORD LENGTH: " << word_length << "\n";
             char* word = new char [word_length];
             // fgets puts a null terminator where the newline character would be
             fseek (dict_file, -word_length, SEEK_CUR);
 
             char tmp = getc (dict_file);
-            // std::cout << "GETC: " << tmp << "\n";
 
             ungetc (tmp, dict_file);
 
             fgets (word, word_length, dict_file);
-            // std::cout << "Word: " << word<< "\n";
             this->words.push_back (word);
 
             begin_word += word_length;
             // Get rid of the newline at the end
             getc (dict_file);
-            // std::cout << "END ELSE\n";
         }
     }
     fclose (dict_file);
@@ -124,13 +118,6 @@ void dictionary::read_dictionary_file (const char* filename)
     std::sort (this->words.begin (), this->words.end (), [](char* a, char* b) {
             return strlen (a) > strlen (b);
             });
-
-    /*
-    for (char* c : this->words)
-    {
-        std::cout << c << "\n";
-    }
-    */
 }
 
 // Assumes sorted dictionary
@@ -186,39 +173,24 @@ void search_anagrams_traverse (input_word input, const dictionary& dict, int dic
 {
     int word_length = strlen (dict.words [dict_index]);
 
-    // std::cout << "Word length: " << word_length << "\n";
-    // std::cout << "DICT WORD: " << dict.words [dict_index] << "\n";
-    // std::cout << "Input length: " << input.length << "\n";
-
-    /*
-    for (int i = 0; i < 26; i++)
-    {
-        std::cout << char(i+97) << ": " << input.word_letters [i] << "\n";
-    }
-    */
-
     for (int i = 0; i < word_length; i++)
     {
         // I should probably just define a custom operator instead of doing this
         // - 'a' thing
         if (input.word_letters [dict.words [dict_index][i] - 'a'] > 0)
         {
-            // std::cout << "Decrementing: " << dict.words [dict_index][i] << "\n";
             --(input.word_letters [dict.words [dict_index][i] - 'a']);
             --input.length;
-
-            // std::cout << "New input length: " << input.length << "\n";
         }
         else
         {
-            // std::cout << "In return false\n";
             --recursions;
             return;
         }
 
         if (input.length == 0 && i == word_length - 1)
         {
-            printf ("Recursions: %d\n", recursions);
+            // printf ("Recursions: %d\n", recursions);
             --recursions;
             annagram_list.push_back (annagram_list.back ());
             annagram_list [annagram_list.size () - 2].push_back (dict.words [dict_index]);
@@ -236,7 +208,6 @@ void search_anagrams_traverse (input_word input, const dictionary& dict, int dic
                     j = dict.word_lengths [input.length];
                     j -= dict_index;
                 }
-                // std::cout << "copy_length: " << input_copy.length << "\n";
                 ++recursions;
                 search_anagrams_traverse (input_copy, dict, dict_index + j, annagram_list);
             }
